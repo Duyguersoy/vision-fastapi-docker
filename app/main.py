@@ -1,4 +1,6 @@
 import os
+from contextlib import asynccontextmanager
+from typing import Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from app.inference import Predictor
 
@@ -9,14 +11,16 @@ MODEL_PATH = os.getenv("MODEL_PATH", "models/detector.pth")
 LE_PATH = os.getenv("LE_PATH", "models/le.pickle")
 DEVICE = os.getenv("DEVICE", "cpu")
 
-app = FastAPI(title="Vision Model Service", version="1.0.0")
+predictor: Optional[Predictor] = None
 
-predictor: Predictor | None = None
-
-@app.on_event("startup")
-def load_model():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     global predictor
     predictor = Predictor(MODEL_PATH, LE_PATH, device=DEVICE)
+    yield
+    predictor = None
+
+app = FastAPI(title="Vision Model Service", version="1.0.0", lifespan=lifespan)
 
 @app.get("/health")
 def health():
